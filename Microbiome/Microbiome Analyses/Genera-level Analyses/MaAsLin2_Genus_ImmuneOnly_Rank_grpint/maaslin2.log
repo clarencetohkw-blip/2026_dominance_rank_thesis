@@ -1,0 +1,65 @@
+2026-07-22 17:29:28.907485 INFO::Writing function arguments to log file
+2026-07-22 17:29:28.908343 DEBUG::Function arguments
+2026-07-22 17:29:28.908878 DEBUG::Output folder: MaAsLin2_Genus_ImmuneOnly_Rank_grpint
+2026-07-22 17:29:28.909236 DEBUG::Min Abundance: 0.000000
+2026-07-22 17:29:28.909617 DEBUG::Min Prevalence: 0.100000
+2026-07-22 17:29:28.909962 DEBUG::Normalization: NONE
+2026-07-22 17:29:28.910218 DEBUG::Transform: NONE
+2026-07-22 17:29:28.914928 DEBUG::Analysis method: LM
+2026-07-22 17:29:28.915561 DEBUG::Max significance: 0.250000
+2026-07-22 17:29:28.915989 DEBUG::Random effects:
+2026-07-22 17:29:28.91635 DEBUG::Fixed effects: DS,DS_GroupV,Group,age_years
+2026-07-22 17:29:28.916876 DEBUG::Correction method: BH
+2026-07-22 17:29:28.917873 DEBUG::Standardize: FALSE
+2026-07-22 17:29:28.918675 DEBUG::Cores: 1
+2026-07-22 17:29:28.918954 INFO::Verifying options selected are valid
+2026-07-22 17:29:28.919953 INFO::Determining format of input files
+2026-07-22 17:29:28.921215 INFO::Input format is data samples as rows and metadata samples as rows
+2026-07-22 17:29:28.925463 DEBUG::A total of 35 samples were found in both the data and metadata
+2026-07-22 17:29:28.926431 DEBUG::Reordering data/metadata to use same sample ordering
+2026-07-22 17:29:28.927384 INFO::Formula for fixed effects: expr ~  DS + DS_GroupV + Group + age_years
+2026-07-22 17:29:28.928337 INFO::Factor detected for categorial metadata 'Group'. Provide a reference argument or manually set factor ordering to change reference level.
+2026-07-22 17:29:28.931058 INFO::Filter data based on min abundance and min prevalence
+2026-07-22 17:29:28.931984 INFO::Total samples in data: 35
+2026-07-22 17:29:28.932594 INFO::Min samples required with min abundance for a feature not to be filtered: 3.500000
+2026-07-22 17:29:28.935078 INFO::Total filtered features: 0
+2026-07-22 17:29:28.935789 INFO::Filtered feature names from abundance and prevalence filtering:
+2026-07-22 17:29:28.937041 INFO::Total filtered features with variance filtering: 0
+2026-07-22 17:29:28.939158 INFO::Filtered feature names from variance filtering:
+2026-07-22 17:29:28.939925 INFO::Running selected normalization method: NONE
+2026-07-22 17:29:28.940989 INFO::Bypass z-score application to metadata
+2026-07-22 17:29:28.941905 INFO::Running selected transform method: NONE
+2026-07-22 17:29:28.942737 INFO::Running selected analysis method: LM
+2026-07-22 17:29:28.944382 INFO::Fitting model to feature number 1, Agathobacter
+2026-07-22 17:29:28.94883 INFO::Fitting model to feature number 2, Agathobaculum
+2026-07-22 17:29:28.95186 INFO::Fitting model to feature number 3, Alistipes
+2026-07-22 17:29:28.955891 INFO::Fitting model to feature number 4, Anaerostipes
+2026-07-22 17:29:28.960671 INFO::Fitting model to feature number 5, Bacteroides
+2026-07-22 17:29:28.966297 INFO::Fitting model to feature number 6, Blautia
+2026-07-22 17:29:28.97047 INFO::Fitting model to feature number 7, Collinsella
+2026-07-22 17:29:28.974084 INFO::Fitting model to feature number 8, Coprococcus
+2026-07-22 17:29:28.977199 INFO::Fitting model to feature number 9, Dorea
+2026-07-22 17:29:28.980934 INFO::Fitting model to feature number 10, X.Eubacterium.
+2026-07-22 17:29:28.984582 INFO::Fitting model to feature number 11, Faecalibacterium
+2026-07-22 17:29:28.98874 INFO::Fitting model to feature number 12, Fusicatenibacter
+2026-07-22 17:29:28.993467 INFO::Fitting model to feature number 13, Intestinimonas
+2026-07-22 17:29:28.997956 INFO::Fitting model to feature number 14, Lachnoclostridium
+2026-07-22 17:29:29.002166 INFO::Fitting model to feature number 15, Lachnospira
+2026-07-22 17:29:29.005255 INFO::Fitting model to feature number 16, Lactobacillus
+2026-07-22 17:29:29.009053 INFO::Fitting model to feature number 17, Ligilactobacillus
+2026-07-22 17:29:29.012894 INFO::Fitting model to feature number 18, Mediterraneibacter
+2026-07-22 17:29:29.017689 INFO::Fitting model to feature number 19, Oscillibacter
+2026-07-22 17:29:29.0222 INFO::Fitting model to feature number 20, Prevotella
+2026-07-22 17:29:29.025252 INFO::Fitting model to feature number 21, Roseburia
+2026-07-22 17:29:29.030029 INFO::Fitting model to feature number 22, Ruminococcus
+2026-07-22 17:29:29.040264 INFO::Counting total values for each feature
+2026-07-22 17:29:29.048456 INFO::Writing filtered data to file MaAsLin2_Genus_ImmuneOnly_Rank_grpint/features/filtered_data.tsv
+2026-07-22 17:29:29.051437 INFO::Writing filtered, normalized data to file MaAsLin2_Genus_ImmuneOnly_Rank_grpint/features/filtered_data_norm.tsv
+2026-07-22 17:29:29.053631 INFO::Writing filtered, normalized, transformed data to file MaAsLin2_Genus_ImmuneOnly_Rank_grpint/features/filtered_data_norm_transformed.tsv
+2026-07-22 17:29:29.055607 INFO::Writing residuals to file MaAsLin2_Genus_ImmuneOnly_Rank_grpint/fits/residuals.rds
+2026-07-22 17:29:29.057998 INFO::Writing fitted values to file MaAsLin2_Genus_ImmuneOnly_Rank_grpint/fits/fitted.rds
+2026-07-22 17:29:29.0598 INFO::Writing all results to file (ordered by increasing q-values): MaAsLin2_Genus_ImmuneOnly_Rank_grpint/all_results.tsv
+2026-07-22 17:29:29.061891 INFO::Writing the significant results (those which are less than or equal to the threshold of 0.250000 ) to file (ordered by increasing q-values): MaAsLin2_Genus_ImmuneOnly_Rank_grpint/significant_results.tsv
+2026-07-22 17:29:29.063115 INFO::Writing heatmap of significant results to file: MaAsLin2_Genus_ImmuneOnly_Rank_grpint/heatmap.pdf
+2026-07-22 17:29:29.066157 INFO::Writing association plots (one for each significant association) to output folder: MaAsLin2_Genus_ImmuneOnly_Rank_grpint
+2026-07-22 17:29:29.19565 WARNING::Input is a matrix, passing through as.data.frame() .

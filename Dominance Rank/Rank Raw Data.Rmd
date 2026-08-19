@@ -1,0 +1,83 @@
+---
+title: "Rank Write-up Raw Values"
+output: html_notebook
+---
+
+This document generates the number of aggression bouts used for each year
+
+```{r}
+rm(list = ls())
+
+library(tidyverse)
+library(lubridate)
+```
+
+# loading csv
+```{r}
+ag <- read.csv("~/Savolainen Lab/SSB/Data/Rank/Ag_Su_AdLib.csv")
+```
+
+# Removing unknown IDs
+Unknown IDs cannot be used for rank determination
+```{r}
+exclude_ids <- c(
+  "JVUN", "FUN", "JVFUN", "JVMUN",
+  "MUN", "SAMUN", "INFANT"
+)
+
+ag_filtered <- ag %>%
+  filter(
+    !ACTOR1 %in% exclude_ids,
+    !RECIP1 %in% exclude_ids
+  )
+
+ag_filtered <- ag_filtered %>%
+  mutate(DATE = ymd(DATE))
+```
+
+# 2026 number of agonistic interactions
+116 males, 502 agonistic interactions in 2026
+```{r}
+twosix <- read.csv("~/Savolainen Lab/SSB/Data/Rank/combined_cleaned_2026.csv")
+
+nrow(na.omit(twosix))
+n_distinct(na.omit(c(twosix$Winner, twosix$Loser)))
+```
+
+
+# 2023, 2024 number of agonistic interactions
+151 males, 2573 agonistic interactions in 2023
+132 males, 826 agonistic interactions in 2024
+```{r}
+twothree <- ag_filtered %>% 
+  filter(year(DATE) == 2023) 
+nrow(na.omit(twothree))
+n_distinct(na.omit(c(twothree$ACTOR1, twothree$RECIP1)))
+  
+twofour <- ag_filtered %>% 
+  filter(year(DATE) == 2024)
+nrow(na.omit(twofour))
+n_distinct(na.omit(c(twofour$ACTOR1, twofour$RECIP1)))
+
+```
+
+# total dataset
+Total of 7643 agonistic interactions
+478 unique males
+```{r}
+nrow(na.omit(ag_filtered))
+n_distinct(na.omit(c(ag_filtered$ACTOR1, ag_filtered$RECIP1)))
+```
+
+
+# pre-2023
+5810 agonistic interactions
+411 males
+```{r}
+bef_2023 <- ag_filtered %>% 
+  filter(year(DATE) < 2024)
+nrow(na.omit(bef_2023))
+n_distinct(na.omit(c(bef_2023$ACTOR1, bef_2023$RECIP1)))
+
+```
+

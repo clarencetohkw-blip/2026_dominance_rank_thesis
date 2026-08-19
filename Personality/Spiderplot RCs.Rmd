@@ -1,0 +1,510 @@
+---
+title: "Spiderplot Creation"
+output: html_notebook
+---
+# Preparing world environment
+```{r}
+rm(list = ls())
+
+library(tidyverse)
+library(ggplot2)
+```
+
+
+# Loading required files
+```{r}
+loadings_df <- read.csv("~/Savolainen Lab/SSB/Data/Personality/pca_loadings_all.csv")
+RC1_loadings <- read.csv("~/Savolainen Lab/SSB/Data/Personality/rc1_loading.csv")
+RC2_loadings <- read.csv("~/Savolainen Lab/SSB/Data/Personality/rc2_loading.csv")
+RC3_loadings <- read.csv("~/Savolainen Lab/SSB/Data/Personality/rc3_loading.csv")
+
+personality_summary <- read.csv("~/Savolainen Lab/SSB/Data/Personality/new_filtered_personality_summarised.csv")
+
+```
+
+# Plotting a Spiderplot for loadings relative to each RC
+### Creating a table with threshold 0.40 for all RCs
+```{r}
+spider_loadings <- loadings_df %>%
+  filter(
+    abs(RC1) >= 0.40 |
+    abs(RC2) >= 0.40 |
+    abs(RC3) >= 0.40
+  )
+```
+
+### Ordering of loadings 
+```{r}
+behaviour_order <-
+  spider_loadings %>%
+  mutate(
+    strongest_RC = case_when(
+      abs(RC1) >= abs(RC2) & abs(RC1) >= abs(RC3) ~ "RC1",
+      abs(RC2) >= abs(RC1) & abs(RC2) >= abs(RC3) ~ "RC2",
+      TRUE                                        ~ "RC3"
+    ),
+
+    strongest_loading = pmax(
+      abs(RC1),
+      abs(RC2),
+      abs(RC3)
+    )
+  ) %>%
+  arrange(
+    strongest_RC,
+    desc(strongest_loading)
+  )
+
+behaviour_order
+```
+
+
+### Converting data into suitable format
+```{r}
+library(tidyr)
+
+spider_RC <-
+  spider_loadings %>%
+  dplyr::select(Behaviour, RC1, RC2, RC3) %>%
+  pivot_longer(
+    cols = starts_with("RC"),
+    names_to = "Component",
+    values_to = "Loading"
+  ) %>%
+  pivot_wider(
+    names_from = Behaviour,
+    values_from = Loading
+  )
+
+spider_RC <-
+  spider_RC %>%
+  dplyr::select(
+    Component,
+    all_of(behaviour_order$Behaviour)
+  )
+
+# renaming the components
+spider_RC$Component <- c(
+  "Social Confidence",
+  "Assertiveness",
+  "Evasiveness"
+)
+```
+
+
+## Plotting using ggplot2
+### Preparing data
+```{r}
+# Converting loadings into long format
+plot_data <-
+  spider_loadings %>%
+  dplyr::select(
+    Behaviour,
+    RC1,
+    RC2,
+    RC3
+  ) %>%
+  pivot_longer(
+    cols = starts_with("RC"),
+    names_to = "Component",
+    values_to = "Loading"
+  )
+
+plot_data <- plot_data %>%
+  mutate(
+    Component = dplyr::recode(
+      Component,
+      RC1 = "Social Confidence",
+      RC2 = "Assertiveness",
+      RC3 = "Evasiveness"
+    )
+  )
+
+# Joining behaviour ordering
+plot_data <-
+  plot_data %>%
+  left_join(
+    behaviour_order %>%
+      dplyr::select(
+        Behaviour,
+        strongest_RC,
+        strongest_loading
+      ),
+    by = "Behaviour"
+  )
+
+# Number of behaviours
+n_beh <- nrow(behaviour_order)
+
+# Calculating equally spaced angles
+behaviour_angles <-
+  tibble(
+    Behaviour = behaviour_order$Behaviour,
+    angle = seq(
+      0,
+      2 * pi,
+      length.out = n_beh + 1
+    )[-(n_beh + 1)]
+  )
+
+# Adding angles to plotting data
+plot_data <-
+  plot_data %>%
+  left_join(
+    behaviour_angles,
+    by = "Behaviour"
+  )
+
+# Converting loadings to plotting radius
+zero_radius <- 1
+
+plot_data <-
+  plot_data %>%
+  mutate(
+    radius = zero_radius + Loading
+  )
+
+# Calculating Cartesian coordinates
+plot_data <-
+  plot_data %>%
+  mutate(
+    x = radius * cos(angle),
+    y = radius * sin(angle)
+  )
+
+# Closing polygons
+polygon_data <-
+  plot_data %>%
+  group_by(Component) %>%
+  arrange(angle) %>%
+  slice(
+    c(
+      1:n(),
+      1
+    )
+  ) %>%
+  ungroup()
+
+# Preparing behaviour labels
+label_data <-
+  behaviour_order %>%
+  left_join(
+    behaviour_angles,
+    by = "Behaviour"
+  ) %>%
+  mutate(
+    label_radius = 2.2,
+    x = label_radius * cos(angle),
+    y = label_radius * sin(angle)
+  )
+
+label_data <-
+  label_data %>%
+  mutate(
+    Label = case_when(
+      Behaviour == "Other species interaction" ~ "Other species\ninteraction",
+      Behaviour == "Stationary in proximity" ~ "Stationary\nin proximity",
+      TRUE ~ Behaviour
+    )
+  )
+
+# Calculating text rotation
+label_data <-
+  label_data %>%
+  mutate(
+    angle_deg = angle * 180 / pi,
+
+    text_angle = ifelse(
+      angle_deg > 90 &
+        angle_deg < 270,
+      angle_deg + 180,
+      angle_deg
+    ),
+
+    hjust = ifelse(
+      angle_deg > 90 &
+        angle_deg < 270,
+      1,
+      0
+    )
+  )
+
+# Component colours
+component_cols <- c(
+  "Social Confidence" = "#2C7FB8",
+  "Assertiveness"     = "#B2182B",
+  "Evasiveness"       = "#31A354"
+)
+
+component_shapes <- c(
+  "Social Confidence" = 16,  # circle
+  "Assertiveness"     = 17,  # triangle
+  "Evasiveness"       = 15   # square
+)
+
+# Calculating sector boundaries
+sector_limits <-
+  behaviour_order %>%
+  mutate(
+    angle = behaviour_angles$angle
+  ) %>%
+  group_by(strongest_RC) %>%
+  summarise(
+    start = min(angle),
+    end = max(angle),
+    .groups = "drop"
+  )
+
+spacing <- 2*pi / n_beh
+
+sector_limits <-
+  behaviour_order %>%
+  mutate(angle = behaviour_angles$angle) %>%
+  group_by(strongest_RC) %>%
+  summarise(
+    first_angle = first(angle),
+    last_angle  = last(angle),
+    .groups = "drop"
+  ) %>%
+  mutate(
+    start = first_angle - spacing/2,
+    end   = last_angle  + spacing/2
+  )
+
+# Creating circular grid
+circle_grid <-
+  crossing(
+    radius = c(0.5, 1, 1.5, 2),
+    theta = seq(
+      0,
+      2*pi,
+      length.out = 500
+    )
+  ) %>%
+  mutate(
+    x = radius*cos(theta),
+    y = radius*sin(theta),
+
+    line_colour = case_when(
+      radius == 1 ~ "zero",
+      TRUE ~ "other"
+    )
+  )
+
+# Creating radial spokes
+spokes <-
+  behaviour_angles %>%
+  mutate(
+    x = 2 * cos(angle),
+    y = 2 * sin(angle)
+  )
+```
+
+### Plotting the figure
+```{r}
+library(ggplot2)
+
+# Creating the base plot
+p <-
+  ggplot() +
+
+# Drawing circular gridlines
+# Light grey circles except zero
+geom_path(
+  data = filter(circle_grid, radius != 1),
+  aes(
+    x,
+    y,
+    group = radius
+  ),
+  colour = "grey75",
+  linewidth = 0.9
+) +
+
+# Drawing radial spokes
+geom_segment(
+  data = spokes,
+  aes(
+    x = 0,
+    y = 0,
+    xend = x,
+    yend = y
+  ),
+  colour = "grey82",
+  linewidth = 0.35
+)
+
+# Drawing the three loading polygons
+p <-
+  p +
+
+geom_path(
+  data = polygon_data,
+  aes(
+    x,
+    y,
+    group = Component,
+    colour = Component
+  ),
+  linewidth = 1.2
+) +
+
+geom_point(
+  data = plot_data,
+  aes(
+    x,
+    y,
+    colour = Component,
+    shape = Component
+  ),
+  size = 4.5
+)
+
+# Draw zero-loading circle on top of everything
+p <- p +
+  geom_path(
+    data = filter(circle_grid, radius == 1),
+    aes(
+      x,
+      y,
+      group = radius
+    ),
+    inherit.aes = FALSE,
+    colour = "grey20",
+    linewidth = 1.5
+  )
+
+# Setting colour and shape scales
+p <- p +
+
+scale_colour_manual(
+  name = NULL,
+  values = component_cols,
+  breaks = c(
+    "Social Confidence",
+    "Assertiveness",
+    "Evasiveness"
+  )
+) +
+
+scale_shape_manual(
+  name = NULL,
+  values = component_shapes,
+  breaks = c(
+    "Social Confidence",
+    "Assertiveness",
+    "Evasiveness"
+  )
+) +
+
+guides(
+  colour = guide_legend(
+    order = 1,
+    override.aes = list(
+      shape = c(16,17,15),
+      linewidth = 1.4,
+      size = 4
+    )
+  ),
+  shape = "none"
+)
+```
+
+### Tidying the figure
+```{r}
+# Adding behaviour labels
+p <-
+  p +
+
+geom_text(
+  data = label_data,
+  aes(
+    x,
+    y,
+    label = Label,
+    angle = text_angle,
+    hjust = hjust
+  ),
+  size = 6.8,
+  family = "sans"
+)
+
+# Creating radial axis labels
+axis_labels <- tibble(
+  Label = c("-1", "0", "1"),
+  x = c(0.12, 0.18, 0.12),
+  y = c(0, 1.12, 2)
+)
+
+# Finishing the plot
+p <-
+  p +
+
+coord_equal(
+    clip = "off"
+) +
+
+scale_x_continuous(
+  limits = c(-3.0, 3.0),
+  expand = expansion(mult = 0.02)
+) +
+
+scale_y_continuous(
+  limits = c(-3.0, 3.0),
+  expand = expansion(mult = 0.02)
+) +
+
+labs(
+  colour = NULL) +
+    
+theme_void(base_size = 18)
+
+
+library(cowplot)
+
+legend <- get_legend(
+  p +
+    theme(
+      legend.position = "bottom",
+      legend.text  = element_text(size = 24),
+      legend.title = element_text(size = 24)
+    )
+)
+
+p <- p +
+geom_text(
+    data = axis_labels,
+    aes(x, y, label = Label),
+    colour = "black",
+    fontface = "bold",
+    size = 9
+)
+
+plot_only <-
+  p +
+  theme(
+    legend.position = "none"
+  )
+
+
+final_plot <-
+  plot_grid(
+    plot_only,
+    legend,
+    ncol = 1,
+    rel_heights = c(0.88, 0.12)
+  )
+
+# Displaying the figure
+final_plot
+
+# Saving publication-quality figure
+ggsave(
+  filename = "~/Savolainen Lab/Figures/PCA_custom_radar_plot.tiff",
+  plot = final_plot,
+  width = 12.5,
+  height = 12.5,
+  dpi = 600,
+  bg = "white"
+)
+```

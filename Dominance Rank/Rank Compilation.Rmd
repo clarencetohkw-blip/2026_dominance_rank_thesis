@@ -1,0 +1,151 @@
+---
+title: "Rank Compilation (across all years)"
+output: html_notebook
+---
+
+I will be first compiling the ranks across the years.
+
+# Loading world environment
+```{r}
+rm(list = ls())
+
+library(tidyverse)
+```
+
+# Loading required files
+```{r}
+rank_2026 <- read.csv("~/Savolainen Lab/SSB/Data/Rank/tidy_combined_rank_2026.csv") 
+
+rank_2025 <- read.csv("~/Savolainen Lab/SSB/Data/Rank/Rank_per_year(in).csv")
+```
+
+# Merging both files
+```{r}
+rank_all <- bind_rows(rank_2026, rank_2025) %>% 
+  arrange(Year)
+
+write.csv(rank_all, "~/Savolainen Lab/SSB/Data/Rank/rank_master_combined_to2026.csv")
+```
+
+# Checking number of overlaps across the years
+```{r}
+repeated_monkeys <- rank_all %>%
+  group_by(ID) %>%
+  summarise(
+    n_years = n_distinct(Year),
+    years = paste(sort(unique(Year)), collapse = ", ")
+  ) %>%
+  filter(n_years > 1) %>%
+  arrange(desc(n_years))
+
+repeated_monkeys
+```
+# Preparing specific datasets
+Here, I will only extract the relevant DS for each type of analysis
+
+## DS for 2026 (for personality analyses)
+I will use the original 2026 file and make some changes to the column for easy merging later on. This is for personality studies for only the 2026 monkeys.
+```{r}
+rank_2026_save <- rank_2026 %>% 
+  rename(Animal_ID = ID,
+         Group = Group_for_DS)
+
+write.csv(rank_2026_save, "~/Savolainen Lab/SSB/Data/Rank/rank_2026_personality.csv")
+```
+
+
+## DS for focal year (personality analyses)
+Here I will extract the DS for the focal follows, based on the years the follow was carried out
+```{r}
+focals <- read.csv("~/Savolainen Lab/SSB/Data/Personality/Updated_Chloe/focals_used_forrank.csv")
+
+rank_all_personality <- rank_all %>%
+  mutate(
+    ID = dplyr::recode(
+      ID,
+      "6.00E+06" = "6EE6",
+      "5.00E+01" = "5EE1"
+    )
+  )
+
+rank_personality <- focals %>% 
+  left_join(
+    rank_all_personality %>% 
+      select(ID, Year, DS, DS_norm, Group_for_DS),
+    by = c("ID", "Year")
+  )
+
+# 93R's rank is missing in 2024; Get 93R's 2023 rank values
+rank_93R_2023 <- rank_all_personality %>%
+  filter(ID == "93R", Year == 2023)
+
+# Replace the missing 2024 values with the 2023 values
+rank_personality <- rank_personality %>%
+  mutate(
+    DS = if_else(
+      ID == "93R" & Year == 2024 & is.na(DS),
+      rank_93R_2023$DS,
+      DS
+    ),
+    DS_norm = if_else(
+      ID == "93R" & Year == 2024 & is.na(DS_norm),
+      rank_93R_2023$DS_norm,
+      DS_norm
+    ),
+    Group_for_DS = if_else(
+      ID == "93R" & Year == 2024 & is.na(Group_for_DS),
+      rank_93R_2023$Group_for_DS,
+      Group_for_DS
+    )
+  )
+
+# 6EE6's rank is missing in 2026; Get 6EE6's 2025 rank values
+rank_6E6_2025 <- rank_all_personality %>%
+  filter(ID == "6EE6", Year == 2025)
+
+# Replace the missing 2026 values with the 2025 values
+rank_personality <- rank_personality %>%
+  mutate(
+    DS = if_else(
+      ID == "6EE6" & Year == 2026 & is.na(DS),
+      rank_6E6_2025$DS,
+      DS
+    ),
+    DS_norm = if_else(
+      ID == "6EE6" & Year == 2026 & is.na(DS_norm),
+      rank_6E6_2025$DS_norm,
+      DS_norm
+    ),
+    Group_for_DS = if_else(
+      ID == "6EE6" & Year == 2026 & is.na(Group_for_DS),
+      rank_6E6_2025$Group_for_DS,
+      Group_for_DS
+    )
+  )
+
+rank_personality <- rank_personality %>% 
+  rename(Animal_ID = ID,
+         Group = Group_for_DS)
+
+write.csv(rank_personality, "~/Savolainen Lab/SSB/Data/Rank/rank_all_personality.csv")
+
+```
+
+## DS for 2023 (for gut analyses)
+Here, 
+```{r}
+rank_gut <- rank_all %>% 
+  filter(Year < 2024) %>% 
+  arrange(ID, desc(Year)) %>%
+  group_by(ID) %>%
+  slice(1) %>%
+  ungroup()
+
+rank_gut <- rank_gut %>% 
+  rename(Animal_ID = ID,
+         Group = Group_for_DS)
+
+write.csv(rank_gut, "~/Savolainen Lab/SSB/Data/Rank/rank_all_gut.csv")
+
+```
+

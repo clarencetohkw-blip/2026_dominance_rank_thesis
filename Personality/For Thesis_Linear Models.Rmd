@@ -1,0 +1,510 @@
+---
+title: "For Thesis: Personality-Rate Linear Models"
+output: html_notebook
+---
+
+Here, we carry out linear models for our PCA scores.
+
+# Preparing world environment
+```{r}
+rm(list = ls())
+
+library(tidyverse)
+library(ggeffects)
+library(ggplot2)
+library(patchwork)
+library(grid)
+
+pca_scores <- read.csv("~/Savolainen Lab/SSB/Data/Personality/pca_scores_rankrate.csv")
+
+# removing NA values
+pca_scores <- pca_scores %>% 
+  drop_na(
+  DS)
+```
+
+## Adding group and year, so they can be used
+```{r}
+year <- read.csv("~/Savolainen Lab/SSB/Data/Personality/Updated_Chloe/focals_used_forrank.csv") %>% 
+  rename(Animal_ID = ID)
+
+group <- read.csv("~/Savolainen Lab/SSB/Data/Rank/rank_all_personality.csv") %>% 
+  dplyr::select(c("Animal_ID", "Group"))
+
+pca_scores <- left_join(pca_scores, year, by = "Animal_ID")
+pca_scores <- left_join(pca_scores, group, by = "Animal_ID")
+```
+
+## Removing duplicate rows
+```{r}
+pca_scores <- pca_scores %>%
+  dplyr::select(-X) %>%     # Remove the unnecessary row-number column
+  distinct(Animal_ID, .keep_all = TRUE)
+```
+
+# Checking descriptive statistics
+```{r}
+mean(pca_scores$age_years)
+sd(pca_scores$age_years)
+range(pca_scores$age_years)
+
+
+mean(pca_scores$DS)
+sd(pca_scores$DS)
+range(pca_scores$DS)
+
+table(pca_scores$Group)
+```
+
+# Linear Models:
+## Making sure all values are numeric and factors as factors
+```{r}
+pca_scores <- pca_scores %>%
+  mutate(across(
+    c(RC1,
+      RC2,
+      RC3,
+      DS,
+      DS_norm,
+      adjusted_SSB,
+      adjusted_SSB_giver,
+      adjusted_SSB_receiver,
+      age_years),
+    as.numeric
+  ))
+
+pca_scores <- pca_scores %>% 
+  mutate(across(
+    c(Year,
+      Group),
+    as.factor)
+  )
+```
+
+## Dominance Rank ~ RC1 (Social Confidence)
+```{r}
+# rank only
+lm_rc1 <- lm(RC1 ~ DS + age_years + Group + Year, data = pca_scores)
+summary(lm_rc1)
+
+# rank and group interaction
+lm_rc1_int <- lm(RC1 ~ DS * Group + age_years + Year, data = pca_scores)
+summary(lm_rc1_int)
+```
+
+## Rank ~ RC2 (Assertiveness)
+```{r}
+# rank only
+lm_rc2 <- lm(RC2 ~ DS + age_years + Group + Year, data = pca_scores)
+summary(lm_rc2)
+
+# rank group int
+lm_rc2_int <- lm(RC2 ~ DS * Group + age_years + Year, data = pca_scores)
+summary(lm_rc2_int)
+```
+
+## Rank ~ RC3 (Evasiveness)
+```{r}
+# rank only
+lm_rc3 <- lm(RC3 ~ DS + age_years + Group + Year, data = pca_scores)
+summary(lm_rc3)
+
+# rank, interaction with group
+lm_rc3_int <- lm(RC3 ~ DS * Group + age_years + Year, data = pca_scores)
+summary(lm_rc3_int)
+```
+
+# Checking model assumptions
+## RC1
+Diagnostic plots look okay
+### RC1 (Rank only)
+```{r}
+# Fit model
+lm_test1 <- lm(RC1 ~ DS + age_years + Group + Year, data = pca_scores)
+
+summary(lm_test1)
+
+# Diagnostic plots
+par(mfrow = c(2, 2))
+plot(lm_test1)
+par(mfrow = c(1, 1))
+```
+
+### RC1 ~ Rank, Group Interaction
+```{r}
+# Fit model
+lm_test1a <- lm(RC1 ~ DS * Group + age_years + Year, data = pca_scores)
+
+summary(lm_test1a)
+
+# Diagnostic plots
+par(mfrow = c(2, 2))
+plot(lm_test1a)
+par(mfrow = c(1, 1))
+```
+
+## RC2
+### RC2 (rank only)
+```{r}
+# Fit model
+lm_test2 <- lm(RC2 ~ DS + age_years + Group + Year, data = pca_scores)
+
+summary(lm_test2)
+
+# Diagnostic plots
+par(mfrow = c(2, 2))
+plot(lm_test2)
+par(mfrow = c(1, 1))
+```
+
+### RC2 (rank, group interaction)
+```{r}
+# Fit model
+lm_test2c <- lm(RC2 ~ DS * Group + age_years + Year, data = pca_scores)
+
+summary(lm_test2c)
+
+# Diagnostic plots
+par(mfrow = c(2, 2))
+plot(lm_test2c)
+par(mfrow = c(1, 1))
+```
+
+## RC3
+### RC3 (rank only)
+```{r}
+# Fit model
+lm_test3 <- lm(RC3 ~ DS + age_years + Group + Year, data = pca_scores)
+
+summary(lm_test3)
+
+# Diagnostic plots
+par(mfrow = c(2, 2))
+plot(lm_test3)
+par(mfrow = c(1, 1))
+```
+
+
+To justify the use of HC3, cite:
+1.Long, J.S. & Ervin, L.H. (2000).
+
+Using Heteroscedasticity Consistent Standard Errors in the Linear Regression Model.
+
+2. Hayes, A.F. & Cai, L. (2007).
+
+Using heteroskedasticity-consistent standard error estimators in OLS regression: An introduction and software implementation.
+
+
+The American Statistician, 54, 217–224.
+
+### RC3 (rank,Group interaction)
+```{r}
+# Fit model
+lm_test3c <- lm(RC3 ~ DS * Group + age_years + Year, data = pca_scores)
+
+summary(lm_test3c)
+
+# Diagnostic plots
+par(mfrow = c(2, 2))
+plot(lm_test3c)
+par(mfrow = c(1, 1))
+```
+
+# Plotting linear models of dominance rank on personality effects
+## Finding y-axis scale
+```{r}
+pred_rc1 <- predict_response(
+  lm_rc1,
+  terms = "DS",
+  margin = "empirical"
+)
+
+pred_rc2_int <- predict_response(
+  lm_rc2_int,
+  terms = c("DS", "Group"),
+  margin = "empirical"
+)
+
+pred_rc3 <- predict_response(
+  lm_rc3, 
+  terms = "DS",
+  margin = "empirical"
+)
+
+y_lim <- range(
+  pca_scores$RC1,
+  pca_scores$RC2,
+  pca_scores$RC3,
+  pred_rc1$conf.low,
+  pred_rc1$conf.high,
+  pred_rc2_int$conf.low,
+  pred_rc2_int$conf.high,
+  pred_rc3$conf.low,
+  pred_rc3$conf.high,
+  na.rm = TRUE
+)
+
+x_lim <- range(pca_scores$DS, na.rm = TRUE)
+
+theme_personality <-
+  theme_classic(base_size = 20) +
+  theme(
+    axis.title = element_text(
+      size = 20,
+      face = "plain"
+    ),
+    axis.text = element_text(
+      size = 17
+    ),
+    axis.ticks.length = unit(0.22, "cm"),
+    legend.title = element_text(
+      size = 18,
+      face = "bold"
+    ),
+    legend.text = element_text(
+      size = 17
+    ),
+    plot.tag = element_text(
+      size = 20,
+      face = "bold"
+    )
+  )
+```
+
+
+## RC1
+```{r}
+p_rc1 <-
+  ggplot(
+    pca_scores,
+    aes(DS, RC1)
+  ) +
+
+  geom_point(
+    alpha = 0.65,
+    size = 3
+  ) +
+
+  geom_ribbon(
+    data = pred_rc1,
+    aes(
+      x = x,
+      ymin = conf.low,
+      ymax = conf.high
+    ),
+    inherit.aes = FALSE,
+    alpha = 0.08,
+    colour = NA
+  ) +
+
+  geom_line(
+    data = pred_rc1,
+    aes(
+      x = x,
+      y = predicted
+    ),
+    inherit.aes = FALSE,
+    linewidth = 2
+  ) +
+
+  scale_x_continuous(
+    limits = x_lim
+  ) +
+
+  scale_y_continuous(
+    limits = y_lim
+  ) +
+
+  labs(
+    x = NULL,
+    y = "Social Confidence"
+  ) +
+
+  theme_personality
+
+p_rc1
+```
+
+## RC2
+```{r}
+p_rc2_int <- ggplot(pca_scores,
+                    aes(DS, RC2)) +
+
+  # Observed data
+  geom_point(
+    aes(colour = Group),
+    alpha = 0.65,
+    size = 3
+  ) +
+
+  # 95% confidence intervals
+  geom_ribbon(
+    data = pred_rc2_int,
+    aes(
+      x = x,
+      ymin = conf.low,
+      ymax = conf.high,
+      fill = group,
+      group = group
+    ),
+    inherit.aes = FALSE,
+    alpha = 0.08,
+    colour = NA,
+    show.legend = FALSE
+  ) +
+
+  # Predicted lines
+  geom_line(
+    data = pred_rc2_int,
+    aes(
+      x = x,
+      y = predicted,
+      colour = group
+    ),
+    inherit.aes = FALSE,
+    linewidth = 2.0
+  ) +
+
+    scale_x_continuous(
+    limits = x_lim
+  ) +
+  
+  scale_y_continuous(
+    limits = y_lim
+  ) +
+  
+  scale_colour_manual(values = c(
+    R = "#D55E00",
+    V = "#0072B2"
+  )) +
+
+  scale_fill_manual(values = c(
+    R = "#D55E00",
+    V = "#0072B2"
+  )) +
+
+  labs(
+    x = NULL,
+    y = "Assertiveness",
+    colour = "Group"
+  ) +
+
+theme_personality
+
+p_rc2_int
+
+# Saving pplot
+ggsave(
+  filename = "~/Savolainen Lab/Figures/RC2_int_new.tiff",
+  plot = p_rc2_int,
+  width = 6,
+  height = 5,
+  dpi = 600,
+  compression = "lzw"
+)
+
+p_rc2_int <- p_rc2_int +
+  theme(
+    legend.position = "none"
+  )
+```
+
+## RC3
+```{r}
+p_rc3 <- ggplot(pca_scores, aes(DS, RC3)) +
+
+  geom_point(alpha = 0.65, size = 3) +
+
+  geom_ribbon(
+    data = pred_rc3,
+    aes(x = x, ymin = conf.low, ymax = conf.high),
+    inherit.aes = FALSE,
+    alpha = 0.08,
+    colour = NA
+  ) +
+
+  geom_line(
+    data = pred_rc3,
+    aes(x = x, y = predicted),
+    inherit.aes = FALSE,
+    linewidth = 2.0
+  ) +
+  
+ scale_x_continuous(
+    limits = x_lim
+  ) +
+
+  scale_y_continuous(
+    limits = y_lim
+  ) +
+  
+  labs(
+    x = "David's Score",
+    y = "Evasiveness"
+  ) +
+
+theme_personality
+
+p_rc3
+
+ggsave(
+  filename = "~/Savolainen Lab/Figures/RC3_new.tiff",
+  plot = p_rc3,
+  width = 6,
+  height = 5,
+  dpi = 600,
+  compression = "lzw"
+)
+```
+
+## Combining all three
+```{r}
+combined_plot <-
+  (
+    (p_rc1 +
+       theme(
+         legend.position = "none"
+       )) /
+
+    (p_rc2_int +
+       theme(
+         legend.position = "top",
+         legend.justification = "center"
+       ) +
+       guides(
+         colour = guide_legend(
+           override.aes = list(
+             shape = 20,
+             size = 5,
+             linewidth = 2.8
+           )
+         ),
+         fill = "none"
+       )) /
+
+    (p_rc3 +
+       theme(
+         legend.position = "none"
+       ))
+  ) +
+  plot_annotation(
+    tag_levels = "A"
+  ) &
+  theme(
+    plot.tag = element_text(
+      size = 20,
+      face = "bold"
+    )
+  )
+
+combined_plot
+
+ggsave(
+  filename = "~/Savolainen Lab/Figures/RC1_RC2_RC3_combined_new.tiff",
+  plot = combined_plot,
+  width = 10,
+  height = 12,
+  dpi = 600
+)
+```
+

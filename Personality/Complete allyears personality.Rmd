@@ -1,0 +1,537 @@
+---
+title: "Personality Analyses Final"
+output: html_notebook
+---
+
+# Preparing libraries and clearing world environment
+```{r}
+rm(list = ls())
+
+library(tidyverse)
+```
+
+# Loading ethogram
+```{r}
+# loading required files
+personality_focal <- read.csv("~/Savolainen Lab/SSB/Data/Personality/Updated_Chloe/clean_focal_follow_data.csv")
+
+ethogram <- tribble(
+  ~action,                  ~Category,
+
+  # Assertive
+  "(give) Aggression",        "Assertive",
+  "Display",                  "Assertive",
+  "Open-mouth threat",        "Assertive",
+  "Supplant",                 "Assertive",
+
+  # Submissive
+  "(receive) Aggression",     "Submissive",
+  "Cower",                    "Submissive",
+  "Lip smack",                "Submissive",
+  "Make room",                "Submissive",
+  "Silent bared-teeth face",  "Submissive",
+
+  # Affiliative
+  "Brow flash",               "Affiliative",
+  "Cooperative infant care",  "Affiliative",
+  "(give) Food share",        "Affiliative",
+  "(receive) Food share",     "Affiliative",
+  "(give) Groom",             "Affiliative",
+  "(receive) Groom",          "Affiliative",
+  "Hold others",              "Affiliative",
+  "Initiate contact",         "Affiliative",
+  "Muzzle contact",           "Affiliative",
+  "Play",                     "Affiliative",
+  "Teeth chatter",            "Affiliative",
+
+  # Sexual
+  "(give) Genital stimulation","Sexual",
+  "(receive) Genital stimulation","Sexual",
+  "(give) Mount",             "Sexual",
+  "(receive) Mount",          "Sexual",
+
+  # Exploratory
+  "Forage",                   "Exploratory",
+  "Object interaction",       "Exploratory",
+  "Other species interaction","Exploratory",
+
+  # Neutral
+  "Feed",                     "Neutral",
+  "Rest",                     "Neutral",
+
+  # Locomotion
+  "Locomotion",               "Locomotion",
+
+  # Approach/Avoidance
+  "Approach",                 "Approach",
+  "Avoid",                    "Avoidance",
+  "Reject",                   "Avoidance",
+
+  # Passive contact
+  "Passive body contact",     "Passive contact",
+  "Stationary in proximity",  "Passive contact",
+
+  # Alone
+  "Stationary alone",         "Alone duration",
+
+  # Vigilance
+  "Stare",                    "Vigilance",
+  "Vigilant scan",            "Vigilance",
+
+  # Self-directed behaviour
+  "Masturbate",               "Self-directed behaviour",
+  "Self-groom",               "Self-directed behaviour",
+
+  # Vocalisation
+  "Vocalisation",             "Vocalisation",
+
+  # Out of sight
+  "Out of sight",             "Out of sight"
+)
+
+# Check for any behaviours in the data not covered by the ethogram
+unmapped <- personality_focal %>%
+  anti_join(ethogram, by = "action") %>%
+  distinct(action)
+
+if (nrow(unmapped) > 0) {
+  message("Unmapped behaviours: ", paste(unmapped$action, collapse = ", "))
+} else {
+  message("All behaviours successfully mapped.") }
+
+```
+
+# Analysing behavioural repeatability
+
+## Checking number of years each monkey appears in
+All monkeys only appear once across dataset 
+```{r}
+# checking the number of years each monkey appears in
+personality_focal_mon <- personality_focal %>% 
+  group_by(actor_id) %>% 
+  summarise(
+    n_years = n_distinct(year),
+    years = paste(sort(unique(year)), collapse = ",")
+  ) %>% 
+  arrange(desc(n_years))
+personality_focal_mon
+```
+
+## Filtering behaviour
+We need to filter rare behaviour as they are not biologically significant and meaningful for our analysis; and they will skew the PCA. This is due to low variance, and introduction of instability into analyses (too many zeros)
+
+### Removing behaviours not pre-defined in ethogram
+These behaviours are not biologically significant
+```{r}
+removed_behaviours <- personality_focal %>%
+  anti_join(ethogram, by = "action") %>%
+  distinct(action)
+
+removed_behaviours
+
+personality_focal_filtered <- personality_focal %>%
+  semi_join(ethogram, by = "action")
+
+```
+
+### Recreating proportions
+```{r}
+personality_prop_by_focal <- personality_focal_filtered %>%
+  group_by(actor_id, focal_number, action) %>%
+  summarise(
+    action_duration = sum(action_duration, na.rm = TRUE),
+    total_duration = first(total_duration),
+    .groups = "drop"
+  ) %>%
+  mutate(
+    action_proportion = action_duration / total_duration
+  )
+```
+
+
+### Checking rare behaviour
+First, checking number of counts per behaviour
+```{r}
+behaviour_counts <- personality_prop_by_focal %>%
+  group_by(action) %>%
+  summarise(
+    n_obs = n(),
+    n_monkeys = n_distinct(actor_id),
+    .groups = "drop"
+  ) %>%
+  arrange(n_obs)
+
+behaviour_counts
+```
+
+### Removing rare behaviours
+```{r}
+keep_behaviours <- behaviour_counts %>%
+  filter(
+    n_obs >= 5,
+    action != "Out of sight" # also removing out of sight
+  ) %>%
+  pull(action)
+
+personality_repeatability <-
+  personality_prop_by_focal %>%
+  filter(action %in% keep_behaviours)
+
+removed_stat <- behaviour_counts %>%
+  filter(!(action %in% keep_behaviours)) %>%
+  arrange(n_obs)
+removed_stat
+
+```
+### Creating new object with proportions
+# Merging and calculating average proportion of each action per monkey
+This personality matrix excludes all rare behaviours, "out of sight" and behaviours not found in the ethogram
+```{r}
+# calculating proportions per focal session
+personality_prop_by_focal <- personality_repeatability %>%
+  group_by(actor_id, focal_number, action) %>%
+  summarise(
+    action_duration = sum(action_duration, na.rm = TRUE),
+    total_duration = first(total_duration), .groups = "drop"
+  ) %>%
+  mutate(
+    action_proportion = action_duration / total_duration
+  )
+
+# checking the total proportions per focal session
+focal_proportion_summary <- personality_prop_by_focal %>%
+  group_by(actor_id, focal_number) %>%
+  summarise(
+    total_proportion = sum(action_proportion, na.rm = TRUE),
+    .groups = "drop"
+  )
+
+# number of focal sessions per monkey
+n_focals_per_monkey <- personality_prop_by_focal %>%
+  distinct(actor_id, focal_number) %>%
+  count(actor_id, name = "n_focals")
+
+# mean proportion per monkey per action
+personality_summary <- personality_prop_by_focal %>%
+  group_by(actor_id, action) %>%
+  summarise(
+    total_proportion = sum(action_proportion, na.rm = TRUE),
+    .groups = "drop"
+  ) %>%
+  left_join(n_focals_per_monkey, by = "actor_id") %>%
+  mutate(
+    mean_proportion = total_proportion / n_focals
+  )
+
+# checking total proportions per monkey
+monkey_proportion_summary <- personality_summary %>%
+  group_by(actor_id) %>%
+  summarise(
+    total_proportion = sum(mean_proportion, na.rm = TRUE),
+    .groups = "drop"
+  )
+
+# saving file
+write.csv(personality_summary, "~/Savolainen Lab/SSB/Data/Personality/new_filtered_personality_summarised.csv")
+```
+
+### Checking variance of behaviours
+```{r}
+personality_matrix <- personality_summary %>%
+  dplyr::select(actor_id, action, mean_proportion) %>%
+  pivot_wider(
+    names_from = action,
+    values_from = mean_proportion,
+    values_fill = 0
+  ) %>%
+  rename(Animal_ID = actor_id)
+
+
+# checking variance of behaviours
+behaviour_variance <- personality_matrix %>%
+  summarise(across(everything(), ~ var(.x, na.rm = TRUE))) %>%
+  pivot_longer(
+    everything(),
+    names_to = "Behaviour",
+    values_to = "Variance"
+  ) %>%
+  arrange(Variance)
+behaviour_variance
+```
+
+## Running repeatability function
+### Creating a new dataframe filling unobserved behaviours as 0.
+```{r}
+all_focals <- personality_focal_filtered %>%
+  distinct(actor_id, focal_number)
+
+all_combinations <- tidyr::crossing(
+  all_focals,
+  action = keep_behaviours
+)
+
+personality_repeatability <- all_combinations %>%
+  left_join(
+    personality_prop_by_focal,
+    by = c("actor_id", "focal_number", "action")
+  ) %>%
+  mutate(
+    action_proportion = replace_na(action_proportion, 0)
+  )
+```
+
+### Checking assumptions of normality for each behaviour
+#### Checking histograms for each behaviour
+```{r}
+library(ggplot2)
+
+ggplot(
+  personality_repeatability,
+  aes(x = action_proportion)
+) +
+  geom_histogram(bins = 30) +
+  facet_wrap(~ action, scales = "free") +
+  theme_bw()
+```
+
+
+#### Checking proportions of zeros for behaviour
+```{r}
+zero_summary <- personality_repeatability %>%
+  group_by(action) %>%
+  summarise(
+    n = n(),
+    n_zero = sum(action_proportion == 0),
+    prop_zero = mean(action_proportion == 0),
+    .groups = "drop"
+  ) %>%
+  arrange(desc(prop_zero))
+
+zero_summary
+```
+
+
+### Checking sampling effort for repeatability checks
+```{r}
+repeatability_check <- personality_repeatability %>%
+  group_by(action, actor_id) %>%
+  summarise(
+    n_focals = n(),
+    .groups = "drop"
+  ) %>%
+  group_by(action) %>%
+  summarise(
+    n_monkeys = n(),
+    min_focals = min(n_focals),
+    median_focals = median(n_focals),
+    max_focals = max(n_focals),
+    .groups = "drop"
+  )
+
+repeatability_check
+```
+
+
+### Running repeatability function
+```{r, results = 'hide', message=FALSE, warning=FALSE}
+library(rptR)
+library(dplyr)
+library(purrr)
+
+behaviour_repeatability <- personality_repeatability %>%
+  group_split(action) %>%
+  map_df(function(dat){
+
+    fit <- tryCatch(
+      rpt(
+        action_proportion ~ (1 | actor_id),
+        grname = "actor_id",
+        data = dat,
+        datatype = "Gaussian",
+        nboot = 1000,
+        npermut = 1000
+      ),
+      error = function(e) return(NULL)
+    )
+
+    if (is.null(fit)) {
+      return(tibble(
+        Behaviour = unique(dat$action),
+        Repeatability = NA,
+        LowerCI = NA,
+        UpperCI = NA,
+        P = NA
+      ))
+    }
+
+   tibble(
+  Behaviour = unique(dat$action),
+  Repeatability = fit$R$actor_id,
+  LowerCI = fit$CI_emp$`2.5%`,
+  UpperCI = fit$CI_emp$`97.5%`,
+  P = fit$P$P_permut,
+  LRT_P = fit$P$LRT_P,
+  N_obs = fit$nobs,
+  N_monkeys = unname(fit$ngroups)
+)
+  })
+
+View(behaviour_repeatability)
+write.csv(behaviour_repeatability, "~/Savolainen Lab/SSB/Data/Personality/repeatability_analysis.csv")
+```
+
+# Loading the required rank and rate files
+```{r}
+rank_file <- read.csv("~/Savolainen Lab/SSB/Data/Rank/rank_all_personality.csv")
+
+rate_file <- read.csv("~/Savolainen Lab/SSB/Data/updatedssbrates.csv") %>% 
+  mutate(
+    Animal_ID = dplyr::recode(Animal_ID,
+                            "5E1" = "5EE1",
+                            "6E6" = "6EE6"))
+
+age <- read.csv("~/Savolainen Lab/Age/age_behaviour.csv") %>% 
+  dplyr::select(-"X")
+
+ag <- read.csv("~/Savolainen Lab/SSB/Data/Aggression/Ag_lifetime.csv") %>% 
+    mutate(
+    Animal_ID = dplyr::recode(Animal_ID,
+                            "5E1" = "5EE1",
+                            "6E6" = "6EE6"))
+
+rank_rate <- left_join(rank_file, rate_file, by = "Animal_ID")
+
+rank_rate <- left_join(rank_rate, age,
+                       by = "Animal_ID")
+
+rank_rate <- left_join(rank_rate, ag, 
+                       by = "Animal_ID") %>% 
+  dplyr::select(c("Animal_ID", "age_years", "DS", "DS_norm", "adjusted_SSB", "adjusted_SSB_giver", "adjusted_SSB_receiver", "adjusted_ag_giver", "adjusted_ag_receiver", "adjusted_ag_total"))
+
+# replacing NAs in aggression with 0, as present SSB rates means they have been observed in scans but not observed with aggression
+rank_rate <- replace_na(
+  rank_rate,
+  list(
+    adjusted_ag_giver = 0,
+    adjusted_ag_receiver = 0,
+    adjusted_ag_total = 0
+  )
+)
+write.csv(rank_rate, "~/Savolainen Lab/SSB/Data/rank_rates_updated.csv")
+```
+
+# PCA (Varimax rotation)
+## Preparing for PCA
+
+```{r}
+library(psych)
+library(tibble)
+
+behaviour_data <- personality_matrix %>%
+  column_to_rownames("Animal_ID")
+
+behaviour_z <- scale(behaviour_data)
+
+cor_matrix <- cor(behaviour_z)
+cortest.bartlett(cor_matrix,
+                 n = nrow(behaviour_z))
+```
+
+## Running parallel analysis
+This determines how many components are relevant for analysis. 3 components suggested here.
+```{r}
+parallel <- fa.parallel(
+  behaviour_z,
+  fa = "pc",
+  n.iter = 1000
+)
+```
+
+## Kaiser correction
+This also examines how many components to analyse. 14 components suggested here
+```{r}
+eigenvalues <- eigen(cor_matrix)$values
+eigenvalues
+sum(eigenvalues > 1)
+```
+
+## Carrying out PCA
+Loading of 0.30 for full loading
+```{r}
+pca <- principal(
+  behaviour_z,
+  nfactors = 3,
+  rotate = "varimax",
+  scores = TRUE
+)
+
+print(
+  pca,
+  cutoff = 0.30,
+  sort = TRUE
+)
+
+# Variance explained per axis
+variance_explained <- pca$Vaccounted
+variance_explained
+
+# extracting pca scores
+pca_scores <- as.data.frame(pca$scores) %>%
+  rownames_to_column("Animal_ID")
+
+# combining pcoa_scores with rank and rates
+pca_scores_rankrate <- left_join(pca_scores, rank_rate, by = "Animal_ID")
+
+write.csv(pca_scores_rankrate, "~/Savolainen Lab/SSB/Data/Personality/pca_scores_rankrate.csv")
+```
+
+### PCA (cut-off = 0.40)
+```{r}
+pca <- principal(
+  behaviour_z,
+  nfactors = 3,
+  rotate = "varimax",
+  scores = TRUE
+)
+
+print(
+  pca,
+  cutoff = 0.40,
+  sort = TRUE
+)
+```
+
+## Extracting loadings for each RC
+```{r}
+loadings_df <- as.data.frame(unclass(pca$loadings)) %>%
+  rownames_to_column("Behaviour")
+loadings_df
+
+write.csv(loadings_df, "~/Savolainen Lab/SSB/Data/Personality/pca_loadings_all.csv")
+
+# RC1
+RC1_loadings <- loadings_df %>%
+  filter(abs(RC1) >= 0.40) %>%
+  arrange(desc(abs(RC1))) %>% 
+  dplyr::select(c("Behaviour", "RC1"))
+
+# RC2
+RC2_loadings <- loadings_df %>%
+  filter(abs(RC2) >= 0.40) %>%
+  arrange(desc(abs(RC2))) %>% 
+  dplyr::select(c("Behaviour", "RC2"))
+
+# RC3
+RC3_loadings <- loadings_df %>%
+  filter(abs(RC3) >= 0.40) %>%
+  arrange(desc(abs(RC3))) %>% 
+  dplyr::select(c("Behaviour", "RC3"))
+
+RC1_loadings
+RC2_loadings
+RC3_loadings
+
+write.csv(RC1_loadings, "~/Savolainen Lab/SSB/Data/Personality/rc1_loading.csv")
+write.csv(RC2_loadings, "~/Savolainen Lab/SSB/Data/Personality/rc2_loading.csv")
+write.csv(RC3_loadings, "~/Savolainen Lab/SSB/Data/Personality/rc3_loading.csv")
+```

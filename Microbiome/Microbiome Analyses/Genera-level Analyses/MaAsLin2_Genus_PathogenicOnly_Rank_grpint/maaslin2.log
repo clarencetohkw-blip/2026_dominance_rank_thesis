@@ -1,0 +1,51 @@
+2026-07-22 17:29:29.329412 INFO::Writing function arguments to log file
+2026-07-22 17:29:29.330977 DEBUG::Function arguments
+2026-07-22 17:29:29.331319 DEBUG::Output folder: MaAsLin2_Genus_PathogenicOnly_Rank_grpint
+2026-07-22 17:29:29.331567 DEBUG::Min Abundance: 0.000000
+2026-07-22 17:29:29.331909 DEBUG::Min Prevalence: 0.100000
+2026-07-22 17:29:29.332188 DEBUG::Normalization: NONE
+2026-07-22 17:29:29.33245 DEBUG::Transform: NONE
+2026-07-22 17:29:29.332702 DEBUG::Analysis method: LM
+2026-07-22 17:29:29.332922 DEBUG::Max significance: 0.250000
+2026-07-22 17:29:29.33326 DEBUG::Random effects:
+2026-07-22 17:29:29.33361 DEBUG::Fixed effects: DS,DS_GroupV,Group,age_years
+2026-07-22 17:29:29.333826 DEBUG::Correction method: BH
+2026-07-22 17:29:29.334396 DEBUG::Standardize: FALSE
+2026-07-22 17:29:29.334857 DEBUG::Cores: 1
+2026-07-22 17:29:29.335383 INFO::Verifying options selected are valid
+2026-07-22 17:29:29.337103 INFO::Determining format of input files
+2026-07-22 17:29:29.338154 INFO::Input format is data samples as rows and metadata samples as rows
+2026-07-22 17:29:29.339216 DEBUG::A total of 35 samples were found in both the data and metadata
+2026-07-22 17:29:29.339467 DEBUG::Reordering data/metadata to use same sample ordering
+2026-07-22 17:29:29.340693 INFO::Formula for fixed effects: expr ~  DS + DS_GroupV + Group + age_years
+2026-07-22 17:29:29.342936 INFO::Factor detected for categorial metadata 'Group'. Provide a reference argument or manually set factor ordering to change reference level.
+2026-07-22 17:29:29.343843 INFO::Filter data based on min abundance and min prevalence
+2026-07-22 17:29:29.344526 INFO::Total samples in data: 35
+2026-07-22 17:29:29.345135 INFO::Min samples required with min abundance for a feature not to be filtered: 3.500000
+2026-07-22 17:29:29.34732 INFO::Total filtered features: 2
+2026-07-22 17:29:29.348974 INFO::Filtered feature names from abundance and prevalence filtering: Enterobacter, Pseudomonas
+2026-07-22 17:29:29.350297 INFO::Total filtered features with variance filtering: 0
+2026-07-22 17:29:29.350963 INFO::Filtered feature names from variance filtering:
+2026-07-22 17:29:29.352056 INFO::Running selected normalization method: NONE
+2026-07-22 17:29:29.353814 INFO::Bypass z-score application to metadata
+2026-07-22 17:29:29.355844 INFO::Running selected transform method: NONE
+2026-07-22 17:29:29.356659 INFO::Running selected analysis method: LM
+2026-07-22 17:29:29.358203 INFO::Fitting model to feature number 1, Campylobacter
+2026-07-22 17:29:29.364188 INFO::Fitting model to feature number 2, Clostridium
+2026-07-22 17:29:29.369343 INFO::Fitting model to feature number 3, Desulfovibrio
+2026-07-22 17:29:29.374622 INFO::Fitting model to feature number 4, Enterococcus
+2026-07-22 17:29:29.378622 INFO::Fitting model to feature number 5, Escherichia.Shigella
+2026-07-22 17:29:29.385908 INFO::Fitting model to feature number 6, Helicobacter
+2026-07-22 17:29:29.391476 INFO::Fitting model to feature number 7, Staphylococcus
+2026-07-22 17:29:29.398774 INFO::Fitting model to feature number 8, Streptococcus
+2026-07-22 17:29:29.404415 INFO::Fitting model to feature number 9, Treponema
+2026-07-22 17:29:29.41324 INFO::Counting total values for each feature
+2026-07-22 17:29:29.416557 INFO::Writing filtered data to file MaAsLin2_Genus_PathogenicOnly_Rank_grpint/features/filtered_data.tsv
+2026-07-22 17:29:29.418686 INFO::Writing filtered, normalized data to file MaAsLin2_Genus_PathogenicOnly_Rank_grpint/features/filtered_data_norm.tsv
+2026-07-22 17:29:29.420184 INFO::Writing filtered, normalized, transformed data to file MaAsLin2_Genus_PathogenicOnly_Rank_grpint/features/filtered_data_norm_transformed.tsv
+2026-07-22 17:29:29.423684 INFO::Writing residuals to file MaAsLin2_Genus_PathogenicOnly_Rank_grpint/fits/residuals.rds
+2026-07-22 17:29:29.42552 INFO::Writing fitted values to file MaAsLin2_Genus_PathogenicOnly_Rank_grpint/fits/fitted.rds
+2026-07-22 17:29:29.426654 INFO::Writing all results to file (ordered by increasing q-values): MaAsLin2_Genus_PathogenicOnly_Rank_grpint/all_results.tsv
+2026-07-22 17:29:29.427924 INFO::Writing the significant results (those which are less than or equal to the threshold of 0.250000 ) to file (ordered by increasing q-values): MaAsLin2_Genus_PathogenicOnly_Rank_grpint/significant_results.tsv
+2026-07-22 17:29:29.429723 INFO::Writing heatmap of significant results to file: MaAsLin2_Genus_PathogenicOnly_Rank_grpint/heatmap.pdf
+2026-07-22 17:29:29.431802 INFO::Writing association plots (one for each significant association) to output folder: MaAsLin2_Genus_PathogenicOnly_Rank_grpint

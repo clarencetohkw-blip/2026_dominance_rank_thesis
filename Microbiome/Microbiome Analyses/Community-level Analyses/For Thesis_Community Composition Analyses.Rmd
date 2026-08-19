@@ -1,0 +1,436 @@
+---
+title: "For Thesis: Community Composition Analyses New Hypotheses"
+output: html_notebook
+---
+
+This notebook will show step by step how the gut microbiome is analysed.
+# Preparing the R environment
+## Clearing libraries and loading libraries
+```{r}
+rm(list = ls())
+
+library(qiime2R)
+library(phyloseq)
+library(tidyverse)
+library(vegan)
+library(ggrepel)
+```
+
+# Data Loading
+## Reading Files
+```{r}
+# Feature table
+table <- read_qza("~/Savolainen Lab/Microbiome/Qiime/Outputs for PCoA/feature_table_decontam.qza")
+
+# Taxonomy
+taxonomy <- read_qza("~/Savolainen Lab/Microbiome/Qiime/Outputs for PCoA/taxonomy_silva.qza")
+
+# Sequences (optional, needed for tree later)
+rep_seqs <- read_qza("~/Savolainen Lab/Microbiome/Qiime/Outputs for PCoA/rep_seqs_decontam.qza")
+
+# Metadata
+metadata <- read.table(
+  "~/Savolainen Lab/Microbiome/Qiime/Outputs for PCoA/metadata.tsv",
+  header = TRUE,
+  sep = "\t",
+  row.names = 1
+)
+
+# Keep original sample IDs
+metadata <- metadata %>%
+  tibble::rownames_to_column("SampleID")
+```
+
+## Preparing metadata
+```{r}
+# Behavioural rates
+rates <- read.csv("~/Savolainen Lab/SSB/Data/updatedssbrates.csv") %>% 
+  mutate(
+    Animal_ID = dplyr::recode(Animal_ID,
+                              "5E+01" = "5E1",
+                              "6E+06" = "6EE6")) %>% 
+  rename(monkey_id = Animal_ID) %>%
+  distinct(monkey_id, .keep_all = TRUE)
+  
+# Dominance rank
+rank <- read.csv(
+  "~/Savolainen Lab/SSB/Data/Rank/rank_all_gut.csv"
+) %>%
+  rename(monkey_id = Animal_ID) %>%
+  mutate(
+    monkey_id = dplyr::recode(
+      monkey_id,
+      "5.00E+01" = "5E1"
+    )
+  ) %>%
+  dplyr::select(-X, -Year)
+
+age <- read.csv("~/Savolainen Lab/Age/age_gut.csv") %>% 
+  dplyr::select(-"X") %>% 
+  rename(monkey_id = Animal_ID) %>% 
+  mutate(
+    monkey_id = dplyr::recode(
+      monkey_id,
+      "5EE1" = "5E1"
+    )
+  )
+
+# Join behavioural metadata
+metadata <- metadata %>%
+  left_join(rates, by = "monkey_id") %>%
+  left_join(rank, by = "monkey_id")
+
+metadata <- metadata %>% 
+  dplyr::select(-c("SSB_Giver", "SSB_Receiver", "DSB_Raw", "SSB_Raw", "X")) %>% 
+  left_join(age, by = "monkey_id")
+
+metadata <- metadata %>% 
+  drop_na(DS)
+```
+
+```{r}
+# rooted tree loaded separately as it is not ready yet
+tree <- read_qza("~/Savolainen Lab/Microbiome/Qiime/Outputs for PCoA/rooted_tree.qza")
+```
+
+# Heavy Lifting: Data preparation (OTUs and Taxonomy Analysis)
+## Building the phyloseq object
+```{r}
+# OTU table — remove BLANK and CTR samples, taxa are rows in QIIME2 feature tables
+exclude_samples <- colnames(table$data)[grepl("BLANK|CTR", colnames(table$data), ignore.case = TRUE)]
+
+otu_data <- table$data[, !colnames(table$data) %in% exclude_samples]
+
+otu <- otu_table(otu_data, taxa_are_rows = TRUE)
+
+# Taxonomy analysis
+tax <- taxonomy$data %>% 
+  separate(Taxon,
+           into = c("Kingdom","Phylum","Class","Order","Family","Genus","Species"),
+           sep = ";", fill = "right") %>% 
+  column_to_rownames("Feature.ID") %>% 
+  as.matrix()
+
+tax <- tax_table(tax)
+
+metadata <- metadata %>%
+  tibble::column_to_rownames("SampleID")
+
+# Metadata
+sample_data <- sample_data(metadata)
+
+# Combine
+ps <- phyloseq(otu, tax, sample_data)
+
+# Filter: keep taxa present in >= 4 samples AND with total abundance >= 20
+ps <- filter_taxa(ps, function(x) sum(x >= 1) >= 4 & sum(x) >= 20, prune = TRUE)
+
+ps
+
+```
+
+## Basic checks on number of samples and taxa
+```{r}
+nsamples(ps)
+ntaxa(ps)
+sort(sample_sums(ps))
+```
+
+## Remove low-depth samples
+```{r}
+ps_pruned <- prune_samples(sample_sums(ps) > 10000, ps)
+ps_pruned
+```
+
+## Inspecting flagged taxa
+```{r}
+# Load contaminant feature IDs identified by decontam (ran upstream in QIIME2)
+contam_ids <- read.table(
+  "~/Savolainen Lab/Microbiome/Qiime/output/decontam/full/contaminant_features.tsv",
+  header = TRUE, sep = "\t")  %>% 
+  pull(feature_id)
+
+# Load the raw (pre-decontam) feature table to assess contaminant read burden
+ft_raw <- read.table(
+  "~/Savolainen Lab/Microbiome/Qiime/output/decontam/full/feature_table.tsv",
+  header = TRUE, sep = "\t", skip = 1, row.names = 1
+)
+
+# The 1792 contaminant features are all unclassifiable by SILVA — no taxonomy available
+cat("Contaminant features:", length(contam_ids), "\n")
+cat("Of these with taxonomy:", sum(contam_ids %in% taxonomy$data$Feature.ID), "\n\n")
+
+# Summarise read counts removed per sample
+data.frame(
+  sample      = colnames(ft_raw),
+  contam_reads = colSums(ft_raw[contam_ids, ]),
+  total_reads  = colSums(ft_raw),
+  pct_contam   = round(colSums(ft_raw[contam_ids, ]) / colSums(ft_raw) * 100, 2)
+)
+```
+
+# Beta Diversity Analyses
+## Relative Abundance Transformation
+```{r}
+ps.rel <- transform_sample_counts(ps_pruned, function(x) x / sum(x))
+```
+
+## CLR + Aitchison Analyses
+```{r}
+# Extract OTU table from pruned object, transpose to samples x taxa
+otu_clr <- t(as(otu_table(ps_pruned), "matrix"))
+
+# CLR transform (samples are rows)
+clr_mat <- decostand(otu_clr, method = "clr", pseudocount = 1)
+
+# Euclidean distance on CLR data (Aitchison distance)
+dist_clr <- dist(clr_mat, method = "euclidean")
+
+# PCoA
+ord_clr <- cmdscale(dist_clr, eig = TRUE, k = 2)
+
+pcoa_clr_df <- data.frame(
+  SampleID = rownames(ord_clr$points),
+  Axis.1   = ord_clr$points[, 1],
+  Axis.2   = ord_clr$points[, 2]
+)
+
+# Join metadata (rownames_to_column needed since metadata uses row names)
+pcoa_clr_df <- left_join(
+  pcoa_clr_df,
+  metadata  %>%  tibble::rownames_to_column("SampleID"),
+  by = "SampleID"
+)
+
+ggplot(pcoa_clr_df, aes(Axis.1, Axis.2, colour = DS)) +
+  geom_point(size = 3) +
+  scale_color_viridis_c() +
+  theme_bw() +
+  labs(
+    title = "CLR-based PCoA (Aitchison Distance) — Dominance Rank",
+    x = "PCoA1",
+    y = "PCoA2"
+  )
+
+
+# PERMANOVA — set row names to match distance matrix labels
+pcoa_clr_complete <- pcoa_clr_df %>%
+  filter(!is.na(DS))
+```
+
+### PERMANOVA models
+```{r}
+# rank only
+adonis2(
+  dist_clr ~ DS + Group + age_years,
+  data = pcoa_clr_complete %>% tibble::column_to_rownames("SampleID"),
+  permutations = 9999
+)
+
+adonis2(
+  dist_clr ~ DS + Group + age_years,
+  data = pcoa_clr_complete %>% tibble::column_to_rownames("SampleID"),
+  permutations = 9999,
+  by = "margin"
+)
+
+# rank, group interaction
+adonis2(
+  dist_clr ~ DS * Group + age_years,
+  data = pcoa_clr_complete %>% tibble::column_to_rownames("SampleID"),
+  permutations = 9999,
+)
+
+adonis2(
+  dist_clr ~ DS * Group + age_years,
+  data = pcoa_clr_complete %>% tibble::column_to_rownames("SampleID"),
+  permutations = 9999,
+  by = "margin"
+)
+```
+### Checking of assumptions
+```{r}
+# checking correlations
+cor(
+  pcoa_clr_complete %>%
+    dplyr::select(
+      DS,
+      age_years
+    )
+)
+
+# Checking homogenity of multivariate dispersion
+disp_group <- betadisper(dist_clr,
+                         pcoa_clr_complete$Group)
+
+anova(disp_group)
+
+permutest(disp_group)
+```
+
+## UniFrac Analysis Preparation
+```{r}
+# combine phyloseq to phylo tree
+ps_tree <- merge_phyloseq(ps_pruned, phy_tree(tree$data))
+
+ps_tree
+
+```
+
+## Weighted UniFrac
+```{r}
+dist_w <- phyloseq::distance(ps_tree, method = "wunifrac")
+ordu_w <- ordinate(ps_tree, method = "PCoA", distance = dist_w)
+
+plot_ordination(ps_tree, ordu_w) +
+  geom_point(size = 4) +
+  scale_color_viridis_c() +
+  theme_bw() +
+  labs(title = "Weighted UniFrac PCoA")
+
+```
+
+### PERMANOVA models
+```{r}
+adonis2(
+  dist_w ~ DS + Group + age_years,
+  data = as(sample_data(ps_tree), "data.frame"),
+  permutations = 9999
+)
+
+adonis2(
+  dist_w ~ DS + Group + age_years,
+  data = as(sample_data(ps_tree), "data.frame"),  permutations = 9999,
+  by = "margin"
+)
+
+
+adonis2(
+  dist_w ~ DS * Group + age_years + DS + Group,
+  data = as(sample_data(ps_tree), "data.frame"),  permutations = 9999,
+)
+
+adonis2(
+  dist_w ~ DS * Group + age_years,
+  data = as(sample_data(ps_tree), "data.frame"),
+  permutations = 9999,
+  by = "margin"
+)
+
+```
+
+### Checking of assumptions
+```{r}
+# checking correlations
+cor(
+  as(sample_data(ps_tree), "data.frame") %>%
+    dplyr::select(
+      DS,
+      age_years)
+)
+
+# Checking homogenity of multivariate dispersion
+disp_group_b <- betadisper(dist_clr,
+                         as(sample_data(ps_tree), "data.frame")$Group)
+
+anova(disp_group_b)
+
+permutest(disp_group_b)
+```
+
+# Alpha diversity matrices
+## Running the Analyses
+```{r}
+# Calculate alpha diversity metrics
+alpha_ranked <- estimate_richness(
+  ps_pruned,
+  measures = c(
+    "Observed",
+    "Shannon",
+    "Simpson",
+    "InvSimpson"
+  )
+) %>%
+  tibble::rownames_to_column("sample") %>%
+  mutate(
+    Evenness = Shannon / log(Observed)
+  )
+```
+
+### Merging diversity metrices to metadata
+```{r}
+# Merging diversity metrices to metadata
+shannon_ssb <- alpha_ranked %>% 
+  mutate(sample_key = gsub("\\.", "-", sample)) %>% 
+  left_join(
+    metadata  %>% 
+      tibble::rownames_to_column("sample_key")  %>% 
+      dplyr::select(c("sample_key", "monkey_id", "DS", "age_years", "Group", "adjusted_SSB", "adjusted_SSB_giver", "adjusted_SSB_receiver")),
+    by = "sample_key"
+  )
+```
+
+### Shannon diversity
+```{r}
+# Linear model for Shannon
+lm_shannon <- lm(Shannon ~ DS + Group + age_years, data = shannon_ssb)
+summary(lm_shannon)
+
+
+# Linear model Shannon (rank), group interaction
+lm_shannon_int <- lm(Shannon ~ DS * Group + age_years, data = shannon_ssb)
+summary(lm_shannon_int)
+```
+
+### Evenness Index
+```{r}
+# Linear model for Evenness
+lm_evenness <- lm(Evenness ~ DS + Group + age_years, data = shannon_ssb)
+summary(lm_evenness)
+
+
+# Linear model Evenness (rank), with group interaction
+lm_evenness_int <- lm(Evenness ~ DS * Group + age_years, data = shannon_ssb)
+summary(lm_evenness_int)
+```
+
+## Checking assumptions for Linear Models
+```{r}
+# Load packages
+library(performance)
+library(car)
+library(lmtest)
+
+# Store all models in a list
+models <- list(
+  Shannon = lm_shannon,
+  Shannon_int = lm_shannon_int,
+  Evenness = lm_evenness,
+  Evenness_int = lm_evenness_int
+)
+
+# Run diagnostics for every model
+for (name in names(models)) {
+
+  cat("\n=========================================\n")
+  cat(name, "\n")
+  cat("=========================================\n\n")
+
+  model <- models[[name]]
+
+  ## Standard diagnostic plots
+  par(mfrow = c(2, 2))
+  plot(model)
+  par(mfrow = c(1, 1))
+
+  ## Variance Inflation Factors
+  cat("\nVariance Inflation Factors\n")
+  print(vif(model))
+
+  ## Overall model diagnostics
+  cat("\nPerformance diagnostics\n")
+  print(check_model(model))
+
+}
+```
+
