@@ -272,7 +272,7 @@ theme(
     axis.text = element_text(
         size = 20
     ),
-    axis.ticks.length = unit(0.30, "cm"),
+    axis.ticks.length = unit(0.22, "cm"),
     legend.key.size = unit(1.2, "lines"),
     legend.title = element_text(
         size = 20,
@@ -377,7 +377,7 @@ geom_line(
       predicted),
   linewidth = 2
 ) +
-  
+
     scale_y_continuous(
     labels = scales::label_number(accuracy = 0.1)
   ) +
@@ -392,10 +392,7 @@ labs(
   )
 ) +
 
-theme_thesis +
-   theme(
-    axis.text.x = element_blank()
-  )
+theme_thesis
 plot_esch
 ```
 

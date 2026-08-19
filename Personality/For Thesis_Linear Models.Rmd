@@ -256,7 +256,7 @@ theme_personality <-
     axis.text = element_text(
       size = 17
     ),
-    axis.ticks.length = unit(0.30, "cm"),
+    axis.ticks.length = unit(0.22, "cm"),
     legend.title = element_text(
       size = 18,
       face = "bold"
@@ -463,16 +463,13 @@ combined_plot <-
   (
     (p_rc1 +
        theme(
-         legend.position = "none",
-         axis.text.x = element_blank()
-
+         legend.position = "none"
        )) /
 
     (p_rc2_int +
        theme(
          legend.position = "top",
-         legend.justification = "center",
-         axis.text.x = element_blank()
+         legend.justification = "center"
        ) +
        guides(
          colour = guide_legend(
